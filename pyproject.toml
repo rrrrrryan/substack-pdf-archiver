@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "substack-pdf-archiver"
+version = "0.1.0"
+description = "Archive authenticated Substack articles to clean PDFs with images preserved."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "OpenAI starter" }]
+license = { text = "MIT" }
+dependencies = [
+  "playwright>=1.40,<2",
+  "requests>=2.31,<3",
+]
+keywords = ["substack", "pdf", "playwright", "archiving"]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.4,<9",
+  "ruff>=0.11,<0.13",
+]
+
+[project.scripts]
+substack-pdf = "substack_pdf_archiver.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

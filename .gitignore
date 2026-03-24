@@ -1,0 +1,15 @@
+.venv/
+.DS_Store
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+*.log
+output/
+artifacts/
+playwright-profile/
+.substack-pdf-profile/
+.archive-debug/
+debug-artifacts/
+*.egg-info/

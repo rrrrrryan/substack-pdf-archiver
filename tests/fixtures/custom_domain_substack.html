@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="application-name" content="Substack">
+    <title>Fixture Post</title>
+    <style>
+      body { font-family: Georgia, serif; margin: 0; }
+      nav, aside { padding: 12px; background: #eee; }
+      article { max-width: 720px; margin: 0 auto; padding: 24px; }
+      .header-anchor-parent, .image-link-expand, .subscription-widget-wrap { display: inline-flex; }
+    </style>
+  </head>
+  <body>
+    <nav>Global nav</nav>
+    <article class="newsletter-post">
+      <header class="post-header">
+        <h1>Fixture Post</h1>
+        <div class="post-meta">By Example Author · March 24, 2026</div>
+        <button class="header-anchor-parent">Anchor</button>
+      </header>
+      <div class="available-content">
+        <p>
+          Intro paragraph with a
+          <a href="https://example.com/source">source link</a>.
+        </p>
+        <figure>
+          <img
+            alt="Chart"
+            src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+          >
+          <figcaption>Simple chart</figcaption>
+          <button class="image-link-expand">Expand image</button>
+        </figure>
+        <div class="file-embed-wrapper">
+          <a class="file-embed-button" href="__ATTACHMENT_URL__">Download the deck</a>
+        </div>
+        <div class="file-embed-wrapper">
+          <a class="file-embed-button" href="__ATTACHMENT_URL__">Duplicate deck link</a>
+        </div>
+        <div class="subscription-widget-wrap">Subscribe now</div>
+      </div>
+      <div data-testid="reaction-bar">Like bar</div>
+      <footer data-testid="post-footer">Footer reactions</footer>
+    </article>
+    <aside>Sidebar</aside>
+    <script src="https://substackcdn.com/script.js"></script>
+  </body>
+</html>
