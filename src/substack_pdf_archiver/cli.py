@@ -61,6 +61,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Default PDF output directory when --output is omitted.",
     )
     archive_parser.add_argument(
+        "--publication",
+        help="Override the extracted publication name for naming and metadata.",
+    )
+    archive_parser.add_argument(
         "--paper",
         default="Letter",
         choices=["Letter", "A4"],
@@ -132,6 +136,7 @@ def main() -> None:
                     user_data_dir=Path(args.profile_dir),
                     output_dir=Path(args.output_dir),
                     output_path=args.output,
+                    publication_name=args.publication,
                     paper_format=args.paper,
                     timeout_ms=args.timeout_ms,
                     wait_ms=args.wait_ms,

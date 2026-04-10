@@ -14,7 +14,14 @@ import requests
 from .config import DEFAULT_OUTPUT_DIR, DEFAULT_PROFILE_DIR
 from .print_css import SUBSTACK_ARCHIVE_PRINT_CSS
 from .site_profiles import SiteProfile, choose_profile, first_selector
-from .utils import default_output_path, ensure_directory, filename_from_url, resolve_target, slugify
+from .utils import (
+    ArchiveNameMetadata,
+    default_output_path,
+    ensure_directory,
+    filename_from_url,
+    resolve_target,
+    slugify,
+)
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
@@ -22,6 +29,13 @@ else:
     Page = Any
 
 logger = logging.getLogger(__name__)
+_BYLINE_MONTH_DATE_PATTERN = re.compile(
+    r"(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+    r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|"
+    r"Dec(?:ember)?)\s+\d{1,2},\s+\d{4}",
+    flags=re.IGNORECASE,
+)
+_PLAIN_DATE_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 
 
 class ArchiveError(RuntimeError):
@@ -37,6 +51,7 @@ class ArchiveOptions:
     user_data_dir: Path = DEFAULT_PROFILE_DIR
     output_dir: Path = DEFAULT_OUTPUT_DIR
     output_path: str | None = None
+    publication_name: str | None = None
     paper_format: str = "Letter"
     timeout_ms: int = 60_000
     wait_ms: int = 1_500
@@ -128,11 +143,16 @@ def archive_target(
         page.wait_for_timeout(options.wait_ms)
         _dismiss_simple_overlays(page)
 
-        title = _extract_title(page, detected_profile)
+        archive_name = _extract_archive_name_metadata(
+            page,
+            detected_profile,
+            publication_override=options.publication_name,
+        )
+        title = archive_name.title
         pdf_path = default_output_path(
             explicit_output=options.output_path,
             url=page.url,
-            title=title,
+            metadata=archive_name,
             output_dir=options.output_dir,
         )
         ensure_directory(pdf_path.parent)
@@ -187,6 +207,8 @@ def archive_target(
 
     metadata = {
         "title": title,
+        "publication_name": archive_name.publication_name,
+        "published_at": archive_name.published_at,
         "source_url": target,
         "resolved_url": target_url,
         "final_url": final_url,
@@ -431,6 +453,240 @@ def _extract_title(page: Page, profile: SiteProfile) -> str:
         except Exception:
             logger.debug("Title selector failed: %s", selector, exc_info=True)
     return page.title().strip() or "substack-archive"
+
+
+def _extract_archive_name_metadata(
+    page: Page,
+    profile: SiteProfile,
+    publication_override: str | None,
+) -> ArchiveNameMetadata:
+    title = _extract_title(page, profile)
+    candidates = _extract_naming_candidates(page, profile)
+    publication_name = _normalize_publication_name(
+        publication_override
+    ) or _select_publication_name(
+        candidates,
+    )
+    if publication_name and publication_name.casefold() == title.casefold():
+        publication_name = None
+
+    return ArchiveNameMetadata(
+        title=title,
+        publication_name=publication_name,
+        published_at=_select_published_at(candidates),
+    )
+
+
+def _extract_naming_candidates(page: Page, profile: SiteProfile) -> dict[str, str | None]:
+    return page.evaluate(
+        """
+        ({ articleSelectors, bylineSelectors }) => {
+          const pick = (root, selectors) => {
+            for (const selector of selectors) {
+              const node = root.querySelector(selector);
+              if (node) {
+                return node;
+              }
+            }
+            return null;
+          };
+
+          const textValue = (node) => {
+            if (!node) {
+              return null;
+            }
+            const text = (node.textContent || "").replace(/\\s+/g, " ").trim();
+            return text || null;
+          };
+
+          const contentValue = (selectors) => {
+            for (const selector of selectors) {
+              const node = document.querySelector(selector);
+              if (!node) {
+                continue;
+              }
+              const value = node.getAttribute("content")
+                || node.getAttribute("datetime")
+                || textValue(node);
+              if (value && value.trim()) {
+                return value.trim();
+              }
+            }
+            return null;
+          };
+
+          let jsonLdPublication = null;
+          let jsonLdPublishedAt = null;
+          const visit = (value) => {
+            if (!value || typeof value !== "object") {
+              return;
+            }
+            if (Array.isArray(value)) {
+              for (const item of value) {
+                visit(item);
+              }
+              return;
+            }
+
+            if (!jsonLdPublication) {
+              const publisher = value.publisher || value.isPartOf;
+              const publishers = Array.isArray(publisher) ? publisher : [publisher];
+              for (const entry of publishers) {
+                if (typeof entry === "string" && entry.trim()) {
+                  jsonLdPublication = entry.trim();
+                  break;
+                }
+                if (
+                  entry
+                  && typeof entry === "object"
+                  && typeof entry.name === "string"
+                  && entry.name.trim()
+                ) {
+                  jsonLdPublication = entry.name.trim();
+                  break;
+                }
+              }
+            }
+
+            if (!jsonLdPublishedAt) {
+              for (const key of ["datePublished", "dateCreated", "uploadDate", "dateModified"]) {
+                if (typeof value[key] === "string" && value[key].trim()) {
+                  jsonLdPublishedAt = value[key].trim();
+                  break;
+                }
+              }
+            }
+
+            for (const nestedKey of ["@graph", "mainEntity"]) {
+              if (value[nestedKey]) {
+                visit(value[nestedKey]);
+              }
+            }
+          };
+
+          for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+            try {
+              visit(JSON.parse(script.textContent || "null"));
+            } catch (error) {
+              continue;
+            }
+          }
+
+          const article = pick(document, articleSelectors) || document;
+          const bylineNode = pick(article, bylineSelectors) || pick(document, bylineSelectors);
+          const visibleTimeNode = pick(article, ["time[datetime]", "time"])
+            || pick(document, ["time[datetime]", "time"]);
+
+          return {
+            json_ld_publication: jsonLdPublication,
+            meta_publication: contentValue([
+              'meta[property="og:site_name"]',
+              'meta[name="og:site_name"]',
+              'meta[name="application-name"]',
+            ]),
+            visible_publication: contentValue([
+              "[data-testid='navbar'] h1",
+              "[data-testid='navbar'] a[href='/']",
+              "header[role='banner'] h1",
+              "header[role='banner'] a[rel='home']",
+              "header[role='banner'] a[href='/']",
+              "a[rel='home']",
+            ]),
+            json_ld_published_at: jsonLdPublishedAt,
+            meta_published_at: contentValue([
+              'meta[property="article:published_time"]',
+              'meta[name="article:published_time"]',
+              'meta[property="og:article:published_time"]',
+              'meta[name="parsely-pub-date"]',
+              'meta[itemprop="datePublished"]',
+              'meta[name="pubdate"]',
+            ]),
+            visible_published_at: visibleTimeNode
+              ? (visibleTimeNode.getAttribute("datetime") || textValue(visibleTimeNode))
+              : null,
+            byline_text: textValue(bylineNode),
+          };
+        }
+        """,
+        {
+            "articleSelectors": list(profile.article_selectors),
+            "bylineSelectors": list(profile.byline_selectors),
+        },
+    )
+
+
+def _select_publication_name(candidates: dict[str, str | None]) -> str | None:
+    for key in ("json_ld_publication", "meta_publication", "visible_publication"):
+        publication_name = _normalize_publication_name(candidates.get(key))
+        if publication_name:
+            return publication_name
+    return None
+
+
+def _normalize_publication_name(value: str | None) -> str | None:
+    cleaned = _clean_text(value)
+    if not cleaned:
+        return None
+    if cleaned.casefold() == "substack":
+        return None
+    return cleaned
+
+
+def _select_published_at(candidates: dict[str, str | None]) -> str | None:
+    for key in (
+        "json_ld_published_at",
+        "meta_published_at",
+        "visible_published_at",
+        "byline_text",
+    ):
+        published_at = _normalize_published_at(candidates.get(key))
+        if published_at:
+            return published_at
+    return None
+
+
+def _normalize_published_at(value: str | None) -> str | None:
+    cleaned = _clean_text(value)
+    if not cleaned:
+        return None
+
+    if re.fullmatch(_PLAIN_DATE_PATTERN, cleaned):
+        return cleaned
+
+    if "T" in cleaned or "+" in cleaned[10:] or cleaned.endswith("Z"):
+        try:
+            return datetime.fromisoformat(cleaned.replace("Z", "+00:00")).isoformat()
+        except ValueError:
+            pass
+
+    date_match = _PLAIN_DATE_PATTERN.search(cleaned)
+    if date_match:
+        return date_match.group(0)
+
+    for date_format in ("%B %d, %Y", "%b %d, %Y", "%B %d %Y", "%b %d %Y"):
+        try:
+            return datetime.strptime(cleaned, date_format).date().isoformat()
+        except ValueError:
+            continue
+
+    match = _BYLINE_MONTH_DATE_PATTERN.search(cleaned)
+    if not match:
+        return None
+
+    raw_date = match.group(0)
+    for date_format in ("%B %d, %Y", "%b %d, %Y"):
+        try:
+            return datetime.strptime(raw_date, date_format).date().isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _clean_text(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = re.sub(r"\s+", " ", value).strip()
+    return cleaned or None
 
 
 def _prepare_clean_archive_dom(page: Page, profile: SiteProfile) -> None:

@@ -62,7 +62,7 @@ This opens Chromium with a persistent profile directory. Log in manually, verify
 substack-pdf archive "https://www.commoditycontext.com/p/global-oil-data-deck-march-2026"
 ```
 
-That will create a PDF and a JSON sidecar in `./output/`.
+That will create a PDF and a JSON sidecar in `./output/`, using a readable default stem like `2026-03-23 - Commodity Context - Global Oil Data Deck (March 2026)`.
 
 ### 3) Pick a specific output path
 
@@ -80,7 +80,17 @@ substack-pdf archive \
   --download-attachments
 ```
 
-### 5) Capture debug artifacts for cleanup/image issues
+The default attachment directory uses the same stem as the PDF.
+
+### 5) Override the publication name used for naming/metadata
+
+```bash
+substack-pdf archive \
+  "https://www.commoditycontext.com/p/global-oil-data-deck-march-2026" \
+  --publication "Commodity Context"
+```
+
+### 6) Capture debug artifacts for cleanup/image issues
 
 ```bash
 substack-pdf archive \
@@ -133,6 +143,7 @@ substack-pdf login \
 substack-pdf archive TARGET \
   --profile-dir ~/.substack-pdf-profile \
   --output-dir ./output \
+  --publication "Publication Name" \
   --paper Letter \
   --timeout-ms 60000 \
   --wait-ms 1500 \
@@ -146,6 +157,7 @@ Arguments:
 - `--profile-dir`: Chromium profile used for login persistence
 - `-o/--output`: explicit PDF output path
 - `--output-dir`: directory for default PDF output when `-o` is omitted
+- `--publication`: override the extracted publication name for default naming and manifest metadata
 - `--paper`: `Letter` or `A4`
 - `--timeout-ms`: navigation and selector timeout
 - `--wait-ms`: extra settle time after initial article detection
