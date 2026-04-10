@@ -62,7 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     archive_parser.add_argument(
         "--publication",
-        help="Override the extracted publication name for naming and metadata.",
+        help="Override the extracted publication name used for default PDF naming.",
     )
     archive_parser.add_argument(
         "--paper",
@@ -93,7 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     archive_parser.add_argument(
         "--debug-dir",
-        help="Write before/after screenshots, cleaned HTML, and debug metadata to this directory.",
+        help="Write before/after screenshots and cleaned HTML to this directory.",
     )
     archive_parser.add_argument(
         "--headed",
@@ -147,7 +147,6 @@ def main() -> None:
                 ),
             )
             print(result.pdf_path)
-            print(result.metadata_path)
             if result.attachment_paths:
                 for path in result.attachment_paths:
                     print(path)

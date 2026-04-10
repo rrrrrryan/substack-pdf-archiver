@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -57,7 +56,7 @@ def test_dom_cleanup_removes_chrome_and_preserves_links(chromium_available: bool
         browser.close()
 
 
-def test_archive_local_fixture_writes_pdf_metadata_and_downloads(
+def test_archive_local_fixture_writes_pdf_and_downloads(
     chromium_available: bool,
     tmp_path: Path,
     attachment_server: str,
@@ -86,24 +85,17 @@ def test_archive_local_fixture_writes_pdf_metadata_and_downloads(
     expected_stem = "2026-03-24 - Example Publication - Fixture Post"
     assert result.pdf_path.name == "2026-03-24 - Example Publication - Fixture Post.pdf"
     assert result.pdf_path.exists()
-    assert result.metadata_path.exists()
-    assert result.metadata_path.name == f"{expected_stem}.archive.json"
+    assert not result.pdf_path.with_suffix(".archive.json").exists()
     assert len(result.attachment_paths) == 1
     assert result.attachment_paths[0].name == "deck.pdf"
     assert result.attachment_paths[0].parent.name == expected_stem
     assert (tmp_path / "debug" / "before-cleanup.png").exists()
     assert (tmp_path / "debug" / "after-cleanup.png").exists()
     assert (tmp_path / "debug" / "cleaned.html").exists()
-
-    metadata = json.loads(result.metadata_path.read_text(encoding="utf-8"))
-    assert metadata["profile"] == "substack-custom-domain"
-    assert metadata["publication_name"] == "Example Publication"
-    assert metadata["published_at"] == "2026-03-24T08:15:00+00:00"
-    assert metadata["attachments"][0]["filename"] == "deck.pdf"
-    assert metadata["debug_artifacts"]["cleaned_html"].endswith("cleaned.html")
+    assert not (tmp_path / "debug" / "archive.json").exists()
 
 
-def test_archive_explicit_output_keeps_path_and_applies_manual_publication_metadata(
+def test_archive_explicit_output_keeps_path_without_metadata_sidecar(
     chromium_available: bool,
     tmp_path: Path,
 ) -> None:
@@ -120,15 +112,14 @@ def test_archive_explicit_output_keeps_path_and_applies_manual_publication_metad
             user_data_dir=tmp_path / "profile",
             output_dir=tmp_path / "output",
             output_path=str(explicit_output),
-            publication_name="Manual Publication",
             timeout_ms=10_000,
             wait_ms=250,
         ),
     )
 
     assert result.pdf_path == explicit_output.resolve()
-    metadata = json.loads(result.metadata_path.read_text(encoding="utf-8"))
-    assert metadata["publication_name"] == "Manual Publication"
+    assert result.attachment_paths == []
+    assert not explicit_output.with_suffix(".archive.json").exists()
 
 
 def test_collect_attachment_links_deduplicates_urls(chromium_available: bool) -> None:

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote, urlparse
@@ -84,7 +83,6 @@ class AttachmentRecord:
 @dataclass
 class ArchiveResult:
     pdf_path: Path
-    metadata_path: Path
     attachment_paths: list[Path]
 
 
@@ -148,7 +146,6 @@ def archive_target(
             detected_profile,
             publication_override=options.publication_name,
         )
-        title = archive_name.title
         pdf_path = default_output_path(
             explicit_output=options.output_path,
             url=page.url,
@@ -158,17 +155,12 @@ def archive_target(
         ensure_directory(pdf_path.parent)
 
         debug_dir = _resolve_debug_dir(options.debug_dir)
-        debug_artifacts: dict[str, str] = {}
         if debug_dir:
-            debug_artifacts["before_cleanup_screenshot"] = str(
-                _save_screenshot(page, debug_dir / "before-cleanup.png")
-            )
+            _save_screenshot(page, debug_dir / "before-cleanup.png")
 
         _auto_scroll(page)
         _promote_images_to_eager(page, detected_profile.image_selector)
-        image_issues = _ensure_images_ready(
-            page, detected_profile.image_selector, options.timeout_ms
-        )
+        _ensure_images_ready(page, detected_profile.image_selector, options.timeout_ms)
 
         attachment_records: list[AttachmentRecord] = []
         if options.download_attachments:
@@ -177,19 +169,13 @@ def archive_target(
 
         _prepare_clean_archive_dom(page, detected_profile)
         page.add_style_tag(content=SUBSTACK_ARCHIVE_PRINT_CSS)
-        cleaned_image_issues = _ensure_images_ready(
-            page, "#__archive_root__ img", options.timeout_ms
-        )
+        _ensure_images_ready(page, "#__archive_root__ img", options.timeout_ms)
 
         if debug_dir:
-            debug_artifacts["after_cleanup_screenshot"] = str(
-                _save_screenshot(page, debug_dir / "after-cleanup.png")
-            )
+            _save_screenshot(page, debug_dir / "after-cleanup.png")
             cleaned_html_path = debug_dir / "cleaned.html"
             cleaned_html_path.write_text(page.content(), encoding="utf-8")
-            debug_artifacts["cleaned_html"] = str(cleaned_html_path)
 
-        final_url = page.url
         page.emulate_media(media="print")
         logger.info("Writing PDF to %s", pdf_path)
         page.pdf(
@@ -205,36 +191,8 @@ def archive_target(
         )
         context.close()
 
-    metadata = {
-        "title": title,
-        "publication_name": archive_name.publication_name,
-        "published_at": archive_name.published_at,
-        "source_url": target,
-        "resolved_url": target_url,
-        "final_url": final_url,
-        "archived_at": datetime.now(timezone.utc).isoformat(),
-        "profile": detected_profile.name,
-        "pdf_path": str(pdf_path),
-        "attachments": [
-            {
-                "url": record.url,
-                "filename": record.filename,
-                "path": str(record.path),
-                "label": record.label,
-            }
-            for record in attachment_records
-        ],
-        "image_failures": [
-            {"src": issue.src, "reason": issue.reason}
-            for issue in [*image_issues, *cleaned_image_issues]
-        ],
-        "debug_dir": str(debug_dir) if debug_dir else None,
-        "debug_artifacts": debug_artifacts,
-    }
-    metadata_path = _write_metadata(pdf_path, metadata, debug_dir)
     return ArchiveResult(
         pdf_path=pdf_path,
-        metadata_path=metadata_path,
         attachment_paths=[record.path for record in attachment_records],
     )
 
@@ -923,14 +881,3 @@ def _resolve_debug_dir(debug_dir: Path | None) -> Path | None:
 def _save_screenshot(page: Page, path: Path) -> Path:
     page.screenshot(path=str(path), full_page=True)
     return path
-
-
-def _write_metadata(pdf_path: Path, metadata: dict[str, Any], debug_dir: Path | None) -> Path:
-    metadata_path = pdf_path.with_suffix(".archive.json")
-    metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
-    if debug_dir:
-        (debug_dir / "archive.json").write_text(
-            json.dumps(metadata, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
-    return metadata_path
