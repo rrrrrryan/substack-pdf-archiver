@@ -49,6 +49,20 @@ body {
   break-inside: avoid !important;
 }
 
+#__archive_root__ iframe,
+#__archive_root__ embed,
+#__archive_root__ video {
+  max-width: 100% !important;
+}
+
+/* Substack's .available-content is a flex container, making .body.markup a flex
+   item whose min-width:auto floor is its min-content width. A fixed-size embed
+   (e.g. a 728px YouTube iframe) can then force the whole body wider than the
+   printable area, and Chromium clips every line at the right margin. */
+#__archive_root__ .body.markup {
+  min-width: 0 !important;
+}
+
 #__archive_root__ figure,
 #__archive_root__ .captioned-image-container,
 #__archive_root__ .file-embed-wrapper {
