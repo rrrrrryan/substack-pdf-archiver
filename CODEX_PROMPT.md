@@ -86,7 +86,6 @@ Add:
 - support file-embed downloads more cleanly
 - infer filenames from `Content-Disposition` when available
 - deduplicate duplicate file links
-- write a small JSON sidecar with metadata about the archived page and any downloaded attachments
 
 ### 5) Add tests and fixtures
 
@@ -128,7 +127,6 @@ And get:
 
 ## Nice-to-have stretch goals
 
-- JSON metadata manifest per archive
 - optional EPUB export
 - optional single-file HTML snapshot export
 - optional `--debug-dir` with screenshots and saved cleaned HTML

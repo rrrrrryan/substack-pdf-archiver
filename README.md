@@ -34,7 +34,7 @@ The repo now includes:
 - site-profile detection for canonical Substack, custom-domain Substack, and a generic article fallback
 - auto-scroll, lazy-image hydration, and image retry logic
 - DOM cleanup before printing with archive-only header/body extraction
-- optional attachment download support with metadata sidecars
+- optional attachment download support
 - optional debug artifacts (`screenshots` + `cleaned.html`)
 - a helper script for sanitizing saved HTML fixtures before committing them to git
 - Ruff + pytest-based development tooling
@@ -62,7 +62,7 @@ This opens Chromium with a persistent profile directory. Log in manually, verify
 substack-pdf archive "https://www.commoditycontext.com/p/global-oil-data-deck-march-2026"
 ```
 
-That will create a PDF and a JSON sidecar in `./output/`.
+That will create a PDF in the current directory, using a readable default stem like `2026-03-23 - Commodity Context - Global Oil Data Deck (March 2026)`.
 
 ### 3) Pick a specific output path
 
@@ -80,7 +80,17 @@ substack-pdf archive \
   --download-attachments
 ```
 
-### 5) Capture debug artifacts for cleanup/image issues
+The default attachment directory uses the same stem as the PDF.
+
+### 5) Override the publication name used for default naming
+
+```bash
+substack-pdf archive \
+  "https://www.commoditycontext.com/p/global-oil-data-deck-march-2026" \
+  --publication "Commodity Context"
+```
+
+### 6) Capture debug artifacts for cleanup/image issues
 
 ```bash
 substack-pdf archive \
@@ -93,7 +103,6 @@ That writes:
 - `before-cleanup.png`
 - `after-cleanup.png`
 - `cleaned.html`
-- `archive.json`
 
 ## Local HTML input
 
@@ -132,7 +141,8 @@ substack-pdf login \
 ```bash
 substack-pdf archive TARGET \
   --profile-dir ~/.substack-pdf-profile \
-  --output-dir ./output \
+  --output-dir ./archives \
+  --publication "Publication Name" \
   --paper Letter \
   --timeout-ms 60000 \
   --wait-ms 1500 \
@@ -145,13 +155,14 @@ Arguments:
 - `TARGET`: an `https://...` URL, a `file://...` URL, or a local HTML path
 - `--profile-dir`: Chromium profile used for login persistence
 - `-o/--output`: explicit PDF output path
-- `--output-dir`: directory for default PDF output when `-o` is omitted
+- `--output-dir`: directory for default PDF output when `-o` is omitted; defaults to the current directory
+- `--publication`: override the extracted publication name for default naming
 - `--paper`: `Letter` or `A4`
 - `--timeout-ms`: navigation and selector timeout
 - `--wait-ms`: extra settle time after initial article detection
 - `--download-attachments`: save file-embed attachments in a sidecar directory
 - `--attachments-dir`: override attachment destination
-- `--debug-dir`: save before/after screenshots, cleaned HTML, and debug metadata
+- `--debug-dir`: save before/after screenshots and cleaned HTML
 - `--headed`: open Chromium visibly during archive runs for debugging
 - `--log-level`: `DEBUG`, `INFO`, `WARNING`, or `ERROR`
 
@@ -167,7 +178,6 @@ The archive flow is:
 6. optionally download deduplicated attachment links
 7. clone the article header/body into a dedicated archive root and strip reader chrome
 8. inject print CSS and render a PDF with backgrounds enabled
-9. write an `.archive.json` manifest beside the PDF
 
 ## Development
 

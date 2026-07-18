@@ -61,6 +61,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Default PDF output directory when --output is omitted.",
     )
     archive_parser.add_argument(
+        "--publication",
+        help="Override the extracted publication name used for default PDF naming.",
+    )
+    archive_parser.add_argument(
         "--paper",
         default="Letter",
         choices=["Letter", "A4"],
@@ -89,7 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     archive_parser.add_argument(
         "--debug-dir",
-        help="Write before/after screenshots, cleaned HTML, and debug metadata to this directory.",
+        help="Write before/after screenshots and cleaned HTML to this directory.",
     )
     archive_parser.add_argument(
         "--headed",
@@ -132,6 +136,7 @@ def main() -> None:
                     user_data_dir=Path(args.profile_dir),
                     output_dir=Path(args.output_dir),
                     output_path=args.output,
+                    publication_name=args.publication,
                     paper_format=args.paper,
                     timeout_ms=args.timeout_ms,
                     wait_ms=args.wait_ms,
@@ -142,7 +147,6 @@ def main() -> None:
                 ),
             )
             print(result.pdf_path)
-            print(result.metadata_path)
             if result.attachment_paths:
                 for path in result.attachment_paths:
                     print(path)
